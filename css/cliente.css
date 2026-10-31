@@ -195,7 +195,7 @@ body.com-barra .tela { padding-bottom: calc(120px + var(--baixo-seguro)); }
 }
 .bilhete::before { content: ''; position: absolute; inset: 6px; border-radius: calc(var(--raio) - 6px); border: 1px solid rgba(216, 176, 106, 0.08); pointer-events: none; }
 .bilhete-cabeca { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 16px; }
-.bilhete-codigo { display: inline-flex; align-items: center; gap: 8px; font-family: var(--f-caps); font-size: 14px; letter-spacing: 0.14em; color: var(--ouro-claro); }
+.bilhete-codigo { white-space: nowrap; display: inline-flex; align-items: center; gap: 8px; font-family: var(--f-caps); font-size: 14px; letter-spacing: 0.14em; color: var(--ouro-claro); }
 .bilhete-codigo .ic { width: 17px; height: 17px; }
 .bilhete-dados { display: grid; gap: 14px; margin: 0; }
 .bilhete-dados div { display: grid; grid-template-columns: 112px 1fr; gap: 12px; align-items: baseline; }
