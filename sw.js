@@ -4,7 +4,7 @@
  * A agenda (Apps Script) nunca é guardada: sempre vem da internet.
  * Ao publicar uma versão nova, aumente o número em VERSAO.
  */
-const VERSAO = 'arcana-v1';
+const VERSAO = 'arcana-v3';
 const ARQUIVOS = [
   './', 'index.html', 'painel.html', 'css/arcana.css', 'css/cliente.css', 'css/painel.css',
   'js/config.js', 'js/comum.js', 'js/api.js', 'js/ceu.js', 'js/cliente.js', 'js/painel.js',
