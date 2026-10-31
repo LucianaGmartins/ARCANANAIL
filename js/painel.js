@@ -14,6 +14,15 @@
     pendentes: [], clientes: null, mes: isoLocal().slice(0, 7), filtroClientes: ''
   };
   const st = () => P.base.studio;
+  const orc = () => !!st().modoOrcamento; // modo orçamento: sem preço e sem sinal
+  const valorTexto = (r) => (orc() || r.sinal <= 0)
+    ? (r.total > 0 ? `valor combinado ${moeda(r.total)}` : 'valor a combinar')
+    : `${moeda(r.total)} · sinal ${moeda(r.sinal)}`;
+  function aplicarModoPainel() {
+    aplicarModo(st());
+    ABAS[1].nome = orc() ? 'A confirmar' : 'Sinais';
+    ABAS[1].curto = orc() ? 'Confirmar' : '';
+  }
   const hoje = () => isoLocal();
   const linkApp = (codigo) => new URL(`./?c=${encodeURIComponent(codigo)}`, location.href).href;
   const linkAppBase = () => new URL('./', location.href).href;
@@ -85,6 +94,7 @@
     try {
       const [base, pend] = await Promise.all([api('painel'), api('pendentes')]);
       P.base = base; P.pendentes = pend; P.dia = base.hoje;
+      aplicarModoPainel();
       montarCasca();
       irAba(location.hash.replace('#', '') || 'agenda');
     } catch (e) {
@@ -219,7 +229,7 @@
         <div class="ag-info">
           <div class="ag-linha1"><h3>${esc(r.cliente)}</h3>${chipStatus(r.status)}</div>
           <p class="ag-servicos">${esc(r.servicos)}</p>
-          <p class="ag-meta">${moeda(r.total)} · sinal ${moeda(r.sinal)} · ${duracaoTexto(r.duracao)} · ${r.origem === 'studio' ? 'pelo studio' : 'pelo app'}</p>
+          <p class="ag-meta">${valorTexto(r)} · ${duracaoTexto(r.duracao)} · ${r.origem === 'studio' ? 'pelo studio' : 'pelo app'}</p>
           ${niver ? `<p class="ag-niver">${icone('bolo')}${esc(niver)}</p>` : ''}
           ${r.obs ? `<p class="ag-obs">${esc(r.obs)}</p>` : ''}
           <div class="ag-acoes">${acoesRapidas(r)}</div>
@@ -231,8 +241,8 @@
     const c = esc(r.codigo);
     const mais = `<button class="btn btn-sutil btn-pequeno" data-acao="mais" data-codigo="${c}" aria-label="Mais ações">${icone('lista')}Mais</button>`;
     if (r.status === 'aguardando') {
-      return `<button class="btn btn-ouro btn-pequeno" data-acao="status" data-status="confirmado" data-codigo="${c}">${icone('check')}Sinal recebido</button>
-        <a class="btn btn-sutil btn-pequeno" href="${whats(r, 'sinal')}" target="_blank" rel="noopener">${icone('mensagem')}Enviar Pix</a>${mais}`;
+      return `<button class="btn btn-ouro btn-pequeno" data-acao="status" data-status="confirmado" data-codigo="${c}">${icone('check')}${orc() ? 'Confirmar horário' : 'Sinal recebido'}</button>
+        <a class="btn btn-sutil btn-pequeno" href="${whats(r, 'sinal')}" target="_blank" rel="noopener">${icone('mensagem')}${orc() ? 'WhatsApp' : 'Enviar Pix'}</a>${mais}`;
     }
     if (r.status === 'confirmado') {
       return `<button class="btn btn-fantasma btn-pequeno" data-acao="status" data-status="concluido" data-codigo="${c}">${icone('brilho')}Concluir</button>
@@ -257,7 +267,7 @@
       substituirLocal(novo);
       if (status === 'confirmado') {
         P.pendentes = P.pendentes.filter((x) => x.codigo !== codigo);
-        oferecerMensagem(novo, 'confirmado', 'Sinal confirmado', 'Quer avisar a cliente pelo WhatsApp que o horário está confirmado?');
+        oferecerMensagem(novo, 'confirmado', orc() ? 'Horário confirmado' : 'Sinal confirmado', 'Quer avisar a cliente pelo WhatsApp que o horário está confirmado?');
       } else {
         toast(`Reserva marcada como ${STATUS[status].rotulo.toLowerCase()}.`, 'ok');
         if (status !== 'aguardando') P.pendentes = P.pendentes.filter((x) => x.codigo !== codigo);
@@ -296,10 +306,11 @@
     if (!r) return;
     const ativa = r.status === 'aguardando' || r.status === 'confirmado';
     const itens = [
-      r.status === 'aguardando' && ['link', whats(r, 'sinal'), 'mensagem', 'Enviar reserva e Pix no WhatsApp'],
+      r.status === 'aguardando' && ['link', whats(r, 'sinal'), 'mensagem', orc() ? 'Enviar reserva no WhatsApp' : 'Enviar reserva e Pix no WhatsApp'],
       r.status === 'confirmado' && ['link', whats(r, 'confirmado'), 'mensagem', 'Enviar confirmação no WhatsApp'],
       ativa && ['link', whats(r, 'lembrete'), 'mensagem', 'Enviar lembrete no WhatsApp'],
-      r.status === 'aguardando' && ['status', 'confirmado', 'check-circulo', 'Sinal recebido: confirmar'],
+      r.status === 'aguardando' && ['status', 'confirmado', 'check-circulo', orc() ? 'Confirmar horário' : 'Sinal recebido: confirmar'],
+      orc() && ['valor', '', 'dinheiro', r.total > 0 ? 'Alterar valor combinado' : 'Registrar valor combinado'],
       r.status === 'confirmado' && ['status', 'concluido', 'brilho', 'Marcar como concluído'],
       ativa && ['remarcar', '', 'calendario', 'Remarcar'],
       ['obs', '', 'lapis', r.obs ? 'Editar observação' : 'Adicionar observação'],
@@ -314,7 +325,7 @@
       corpo: `
         <div class="folha-resumo">
           <p>${esc(r.servicos)}</p>
-          <p>${moeda(r.total)} · sinal ${moeda(r.sinal)} · ${esc(mascaraFone(r.whatsapp))}</p>
+          <p>${valorTexto(r)} · ${esc(mascaraFone(r.whatsapp))}</p>
           ${r.obs ? `<p class="ag-obs">${esc(r.obs)}</p>` : ''}
         </div>
         <div class="menu-acoes">${itens.map(([tipo, valor, ic, rotulo, perigo]) => tipo === 'link'
@@ -331,6 +342,7 @@
       if (tipo === 'status') setTimeout(() => mudarStatus(r.codigo, b.dataset.valor), 260);
       if (tipo === 'remarcar') setTimeout(() => folhaRemarcar(r), 260);
       if (tipo === 'obs') setTimeout(() => folhaObs(r), 260);
+      if (tipo === 'valor') setTimeout(() => folhaValor(r), 260);
       if (tipo === 'copiar-link') { if (await copiar(linkApp(r.codigo))) toast('Link copiado.', 'ok'); }
     });
   }
@@ -396,6 +408,28 @@
     });
   }
 
+  function folhaValor(r) {
+    const folha = abrirFolha({
+      titulo: 'Valor combinado', subtitulo: r.cliente,
+      corpo: `<form class="form-folha"><p class="folha-texto">Registre o valor que vocês combinaram. Ele entra no faturamento da Visão geral.</p>
+        <label class="campo"><span>Valor (R$)</span><input class="entrada" name="total" type="number" inputmode="decimal" min="0" step="0.01" value="${r.total > 0 ? r.total : ''}"></label>
+        <button class="btn btn-ouro btn-bloco" type="submit">Salvar valor</button></form>`
+    });
+    const f = $('form', folha.el);
+    f.addEventListener('submit', (e) => {
+      e.preventDefault();
+      comCarga($('button', f), async () => {
+        try {
+          const novo = await api('valor', { codigo: r.codigo, total: Number(f.total.value || 0) });
+          substituirLocal(novo);
+          folha.fechar();
+          toast('Valor salvo.', 'ok');
+          recarregarAba();
+        } catch (err) { toast(err.message, 'erro'); }
+      });
+    });
+  }
+
   function folhaObs(r) {
     const folha = abrirFolha({
       titulo: 'Observação', subtitulo: r.cliente,
@@ -426,12 +460,12 @@
         <datalist id="lista-clientes"></datalist>
         <label class="campo"><span>WhatsApp</span><input class="entrada" name="whatsapp" type="tel" inputmode="tel" placeholder="(88) 99999-9999"></label>
         <fieldset class="campo escolha-servicos"><span>Serviços</span>
-          <div class="chips-servicos">${servicos.map((s) => `<label class="chip-escolha"><input type="checkbox" name="servico" value="${esc(s.id)}" data-duracao="${s.duracao}" data-preco="${s.preco}"><span>${esc(s.nome)}<small>${moeda(s.preco)} · ${duracaoTexto(s.duracao)}</small></span></label>`).join('')}</div>
+          <div class="chips-servicos">${servicos.map((s) => `<label class="chip-escolha"><input type="checkbox" name="servico" value="${esc(s.id)}" data-duracao="${s.duracao}" data-preco="${s.preco}"><span>${esc(s.nome)}<small>${orc() ? '' : moeda(s.preco) + ' · '}${duracaoTexto(s.duracao)}</small></span></label>`).join('')}</div>
         </fieldset>
         <p class="total-folha" id="total-folha">Escolha os serviços</p>
         ${camposHorario(P.dia >= hoje() ? P.dia : hoje())}
         <label class="campo"><span>Situação</span>
-          <select class="entrada" name="status"><option value="aguardando">Aguardando sinal</option><option value="confirmado">Sinal já recebido (confirmada)</option></select></label>
+          <select class="entrada" name="status">${orc() ? '<option value="aguardando">Aguardando confirmação</option><option value="confirmado">Já confirmada</option>' : '<option value="aguardando">Aguardando sinal</option><option value="confirmado">Sinal já recebido (confirmada)</option>'}</select></label>
         <label class="campo"><span>Observação <small>opcional</small></span><textarea class="entrada" name="obs" maxlength="400"></textarea></label>
         <button class="btn btn-ouro btn-bloco" type="submit">${icone('brilho')}Criar reserva</button>
       </form>`
@@ -445,7 +479,7 @@
       if (e.target.name !== 'servico') return;
       const total = escolhidos().reduce((a, i) => a + Number(i.dataset.preco), 0);
       $('#total-folha').textContent = escolhidos().length
-        ? `${moeda(total)} · ${duracaoTexto(duracao())} · sinal ${moeda(Math.round(total * st().sinalPct) / 100)}` : 'Escolha os serviços';
+        ? (orc() ? `${duracaoTexto(duracao())} · valor a combinar` : `${moeda(total)} · ${duracaoTexto(duracao())} · sinal ${moeda(Math.round(total * st().sinalPct) / 100)}`) : 'Escolha os serviços';
       hora.atualizar();
     });
 
@@ -475,7 +509,7 @@
           if (r.status === 'aguardando') P.pendentes.push(r);
           atualizarContador();
           oferecerMensagem(r, r.status === 'confirmado' ? 'confirmado' : 'sinal', 'Reserva criada',
-            r.status === 'confirmado' ? 'Quer mandar a confirmação para a cliente?' : 'Quer mandar para a cliente os dados da reserva com a chave Pix do sinal?');
+            r.status === 'confirmado' ? 'Quer mandar a confirmação para a cliente?' : (orc() ? 'Quer mandar os dados da reserva para a cliente no WhatsApp?' : 'Quer mandar para a cliente os dados da reserva com a chave Pix do sinal?'));
           if (P.aba === 'agenda') abaAgenda(); else irAba('agenda');
         } catch (err) { toast(err.message, 'erro'); }
       });
@@ -484,7 +518,7 @@
 
   // ---------- sinais ----------
   async function abaSinais() {
-    pintar(`<p class="intro-aba">Reservas que ainda esperam o Pix do sinal. Confirme assim que o comprovante chegar no WhatsApp.</p><div id="lista-sinais">${esqueleto(3, 120)}</div>`);
+    pintar(`<p class="intro-aba">${orc() ? 'Reservas feitas pelo app que ainda esperam a conversa e o orçamento. Confirme o horário depois de combinar com a cliente.' : 'Reservas que ainda esperam o Pix do sinal. Confirme assim que o comprovante chegar no WhatsApp.'}</p><div id="lista-sinais">${esqueleto(3, 120)}</div>`);
     try {
       P.pendentes = await api('pendentes');
       atualizarContador();
@@ -495,13 +529,13 @@
         return `<article class="sinal-cartao${atrasado ? ' atrasado' : ''}">
           <div class="sinal-topo">
             <div><h3>${esc(r.cliente)}</h3><p>${esc(maiuscula(dataLonga(r.data)))} às ${esc(r.hora)}</p></div>
-            <strong>${moeda(r.sinal)}</strong>
+            <strong>${orc() ? esc(duracaoTexto(r.duracao)) : moeda(r.sinal)}</strong>
           </div>
           <p class="ag-servicos">${esc(r.servicos)}</p>
           <p class="sinal-tempo">${icone('ampulheta')}Reservado ${haQuanto(r.criadoEm)}${atrasado ? ' · passou do prazo' : ''}</p>
           <div class="ag-acoes">
-            <button class="btn btn-ouro btn-pequeno" data-acao="status" data-status="confirmado" data-codigo="${esc(r.codigo)}">${icone('check')}Sinal recebido</button>
-            <a class="btn btn-sutil btn-pequeno" href="${whats(r, 'sinal')}" target="_blank" rel="noopener">${icone('mensagem')}Cobrar</a>
+            <button class="btn btn-ouro btn-pequeno" data-acao="status" data-status="confirmado" data-codigo="${esc(r.codigo)}">${icone('check')}${orc() ? 'Confirmar horário' : 'Sinal recebido'}</button>
+            <a class="btn btn-sutil btn-pequeno" href="${whats(r, 'sinal')}" target="_blank" rel="noopener">${icone('mensagem')}${orc() ? 'WhatsApp' : 'Cobrar'}</a>
             <button class="btn btn-sutil btn-pequeno" data-acao="mais" data-codigo="${esc(r.codigo)}">${icone('lista')}Mais</button>
           </div>
         </article>`;
@@ -535,7 +569,7 @@
         <div class="kpis">
           <div class="kpi destaque"><span>Faturado</span><strong>${moeda(r.realizado)}</strong><small>${ps.concluido} concluídos de ${atend} reservas no mês</small></div>
           <div class="kpi"><span>A receber</span><strong>${moeda(r.previsto)}</strong><small>${ps.confirmado} confirmadas · ${ps.aguardando} aguardando</small></div>
-          <div class="kpi"><span>Sinais recebidos</span><strong>${moeda(r.sinais)}</strong><small>no mês</small></div>
+          ${orc() ? `<div class="kpi"><span>Atendimentos</span><strong>${ps.concluido + ps.confirmado}</strong><small>concluídos e confirmados</small></div>` : `<div class="kpi"><span>Sinais recebidos</span><strong>${moeda(r.sinais)}</strong><small>no mês</small></div>`}
           <div class="kpi"><span>Ticket médio</span><strong>${moeda(r.ticket)}</strong><small>por atendimento</small></div>
           <div class="kpi"><span>Faltas e cancelamentos</span><strong>${ps.faltou + ps.cancelado}</strong><small>${ps.faltou} faltas · ${ps.cancelado} cancelados</small></div>
         </div>
@@ -705,7 +739,8 @@
         </section>
 
         <section class="painel-bloco">
-          <h2>Pix e sinal</h2>
+          <h2>Valores, Pix e sinal</h2>
+          <label class="linha-interruptor"><span><b>Modo orçamento</b><small>Esconde os valores e o sinal do app. O orçamento é feito na conversa pelo WhatsApp.</small></span><span class="interruptor"><input type="checkbox" name="modoOrcamento" ${s.modoOrcamento ? 'checked' : ''}><i></i></span></label>
           <div class="grade-2">
             ${campo('pixChave', 'Chave Pix', 'maxlength="80"')}
             <label class="campo"><span>Tipo da chave</span><select class="entrada" name="pixTipo">${Object.entries(TIPOS_PIX).map(([k, v]) => `<option value="${k}" ${s.pixTipo === k ? 'selected' : ''}>${maiuscula(v)}</option>`).join('')}</select></label>
@@ -727,6 +762,10 @@
             <label class="campo"><span>Intervalo</span><select class="entrada" name="intervalo">${[15, 20, 30, 45, 60].map((v) => `<option value="${v}" ${Number(s.intervalo) === v ? 'selected' : ''}>${v} min</option>`).join('')}</select></label>
             ${campo('antecedenciaHoras', 'Antecedência (h)', 'type="number" min="0" max="72" inputmode="numeric"')}
             ${campo('diasAgenda', 'Agenda aberta (dias)', 'type="number" min="7" max="120" inputmode="numeric"')}
+          </div>
+          <div class="grade-2">
+            ${campo('inicioAtendimento', 'Começar a atender em', 'type="date"', 'vazio = já atende')}
+            ${campo('maxPorDia', 'Atendimentos por dia', 'type="number" min="0" max="20" inputmode="numeric"', '0 = sem limite')}
           </div>
           <div class="horarios-semana">
             <div class="hs-cab"><span>Dia</span><span>Abre</span><span>Fecha</span><span>Pausa</span><span>Volta</span></div>
@@ -785,7 +824,8 @@
       e.preventDefault();
       const studio = {};
       ['nome', 'slogan', 'whatsapp', 'instagram', 'endereco', 'mapa', 'pixChave', 'pixTipo', 'pixNome', 'pixCidade', 'sinalPct',
-        'prazoSinalHoras', 'intervalo', 'antecedenciaHoras', 'diasAgenda', 'boasVindas', 'politica'].forEach((k) => { studio[k] = f[k].value.trim(); });
+        'prazoSinalHoras', 'intervalo', 'antecedenciaHoras', 'diasAgenda', 'inicioAtendimento', 'maxPorDia', 'boasVindas', 'politica'].forEach((k) => { studio[k] = f[k].value.trim(); });
+      studio.modoOrcamento = f.modoOrcamento.checked;
       studio.whatsapp = soDigitos(studio.whatsapp);
       const horarios = [0, 1, 2, 3, 4, 5, 6].map((d) => ({
         dia: d, aberto: f[`aberto-${d}`].checked, inicio: f[`inicio-${d}`].value, fim: f[`fim-${d}`].value,
@@ -793,7 +833,10 @@
       }));
       comCarga($('button[type=submit]', f), async () => {
         try {
+          const antes = orc();
           P.base = await api('salvarAjustes', { studio, horarios, bloqueios: P.folgas });
+          aplicarModoPainel();
+          if (antes !== orc()) { montarCasca(); irAba('ajustes'); }
           toast('Ajustes salvos.', 'ok');
           $('#topo-sub').textContent = st().nome;
         } catch (err) { toast(err.message, 'erro'); }
