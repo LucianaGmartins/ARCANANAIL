@@ -6,5 +6,5 @@
  * mas os dados ficam salvos só no aparelho de quem está testando.
  */
 window.ARCANA_CONFIG = {
-  API_URL: ''
+  API_URL: 'https://script.google.com/macros/s/AKfycbwtT2XN3rknXyawuJhCTKGzvYrCW--X8Xkb8iYML1oKEBfnJDBtQ134Y3N8kT7rXN95/exec'
 };
