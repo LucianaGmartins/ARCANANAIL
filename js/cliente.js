@@ -16,6 +16,8 @@
   try { introFeita = sessionStorage.getItem('arcana-intro') === '1'; } catch { /* sem sessão */ }
 
   const studio = () => Object.assign({}, PADRAO, S.vitrine && S.vitrine.studio);
+  const orc = () => !!studio().modoOrcamento; // modo orçamento: sem preços, sem sinal, valor combinado no WhatsApp
+  aplicarModo(studio());
   const servicoPorId = (id) => S.vitrine && S.vitrine.servicos.find((s) => s.id === id);
   const perfil = () => lerLocal(CH.perfil, {});
   const minhasReservas = () => lerLocal(CH.reservas, []);
@@ -32,6 +34,7 @@
     if (!S.pedidoVitrine || forcar) {
       S.pedidoVitrine = API.chamar('vitrine').then((v) => {
         S.vitrine = v;
+        aplicarModo(v.studio);
         gravarLocal(CH.vitrine, v);
         return v;
       }).catch((e) => { S.pedidoVitrine = null; throw e; });
@@ -79,12 +82,12 @@
   // ---------- início ----------
   function htmlMenu() {
     if (!S.vitrine) return Array.from({ length: 6 }, () => '<div class="esqueleto" style="height:76px"></div>').join('');
-    return agrupar(S.vitrine.servicos).map((c, i) => `
+    return agrupar(S.vitrine.servicos).map((c, i, todos) => `
       <div class="arcano surgir">
-        <header class="arcano-topo"><span class="numeral">${romano(i + 1)}</span><h3>${esc(c.nome)}</h3></header>
+        ${todos.length > 1 ? `<header class="arcano-topo"><span class="numeral">${romano(i + 1)}</span><h3>${esc(c.nome)}</h3></header>` : ""}
         <ul class="menu-lista">${c.itens.map((s) => `
           <li><button class="menu-item" data-acao="escolher" data-id="${esc(s.id)}">
-            <span class="menu-linha"><span class="menu-nome">${esc(s.nome)}</span><span class="pontilhado" aria-hidden="true"></span><span class="menu-preco">${moeda(s.preco)}</span></span>
+            <span class="menu-linha"><span class="menu-nome">${esc(s.nome)}</span>${orc() ? '' : `<span class="pontilhado" aria-hidden="true"></span><span class="menu-preco">${moeda(s.preco)}</span>`}</span>
             <span class="menu-desc">${esc(s.descricao)}</span>
             <span class="menu-rodape"><span class="menu-tempo">${icone('relogio')}${duracaoTexto(s.duracao)}</span><span class="menu-add">Reservar${icone('direita')}</span></span>
           </button></li>`).join('')}
@@ -106,8 +109,9 @@
     introFeita = true;
     try { sessionStorage.setItem('arcana-intro', '1'); } catch { /* sem sessão */ }
 
+    const o = orc();
     app.innerHTML = `
-    <div class="tela tela-inicio${intro ? ' com-intro' : ''}">
+    <div class="tela tela-inicio${intro ? ' com-intro' : ''}" data-orc="${o}">
       <header class="topo-inicio">
         <button class="pilula" data-acao="ir" data-destino="meus">${icone('calendario')}Meus horários</button>
       </header>
@@ -126,7 +130,7 @@
         <p class="lead revelar" data-campo="boasVindas">${esc(st.boasVindas)}</p>
         <div class="acoes-hero revelar" id="acoes-hero">
           <button class="btn btn-ouro btn-bloco" data-acao="reservar">${icone('brilho')}Reservar meu horário</button>
-          <button class="btn btn-fantasma btn-bloco" data-acao="rolar" data-alvo="servicos">Ver serviços e valores</button>
+          <button class="btn btn-fantasma btn-bloco" data-acao="rolar" data-alvo="servicos">${o ? 'Ver serviços' : 'Ver serviços e valores'}</button>
         </div>
       </section>
 
@@ -136,24 +140,28 @@
           <h2 class="titulo-secao">Três passos até <em>o seu horário</em></h2>
         </div>
         <ol class="passos">
+          ${o ? `
+          <li class="surgir"><span class="numeral">I</span><div><h3>Escolha</h3><p>Diga qual serviço você quer: alongamento ou manutenção.</p></div></li>
+          <li class="surgir"><span class="numeral">II</span><div><h3>Reserve</h3><p>Veja só os dias livres de verdade e separe o seu horário.</p></div></li>
+          <li class="surgir"><span class="numeral">III</span><div><h3>Converse</h3><p>Mande a foto das suas unhas e a sua referência pelo WhatsApp. Cada unha é única: o orçamento sai na conversa e o horário é confirmado em seguida.</p></div></li>` : `
           <li class="surgir"><span class="numeral">I</span><div><h3>Escolha</h3><p>Monte o atendimento com um ou mais serviços. O valor e o tempo aparecem na hora.</p></div></li>
           <li class="surgir"><span class="numeral">II</span><div><h3>Reserve</h3><p>Veja só os horários livres de verdade e fique com o que cabe na sua rotina.</p></div></li>
-          <li class="surgir"><span class="numeral">III</span><div><h3>Garanta</h3><p>Pague o sinal de <span data-pct>${st.sinalPct}</span>% via Pix e envie o comprovante pelo WhatsApp. A confirmação chega em seguida.</p></div></li>
+          <li class="surgir"><span class="numeral">III</span><div><h3>Garanta</h3><p>Pague o sinal de <span data-pct>${st.sinalPct}</span>% via Pix e envie o comprovante pelo WhatsApp. A confirmação chega em seguida.</p></div></li>`}
         </ol>
       </section>
 
       <section class="secao" id="servicos">
         <div class="surgir">
           <p class="sobretitulo">O menu</p>
-          <h2 class="titulo-secao">Serviços e <em>valores</em></h2>
+          <h2 class="titulo-secao">${o ? 'Nossos <em>serviços</em>' : 'Serviços e <em>valores</em>'}</h2>
           <p class="lead">Toque em um serviço para começar a sua reserva.</p>
         </div>
         <div class="menu" id="menu">${htmlMenu()}</div>
       </section>
 
-      <section class="secao" id="politica">
+      <section class="secao" id="politica"${st.politica ? '' : ' hidden'}>
         <details class="politica surgir">
-          <summary><span>${icone('bilhete')}Sobre o sinal e remarcações</span>${icone('baixo')}</summary>
+          <summary><span>${icone('bilhete')}${o ? 'Remarcações e atrasos' : 'Sobre o sinal e remarcações'}</span>${icone('baixo')}</summary>
           <p id="politica-texto">${esc(st.politica)}</p>
         </details>
       </section>
@@ -183,8 +191,11 @@
   }
 
   function atualizarInicio() {
-    if (!$('.tela-inicio', app)) return;
+    const tela = $('.tela-inicio', app);
+    if (!tela) return;
+    if (tela.dataset.orc !== String(orc())) { telaInicio(null, 0); return; }
     const st = studio();
+    $('#politica').hidden = !st.politica;
     $$('[data-campo]', app).forEach((el) => { el.textContent = st[el.dataset.campo] || ''; });
     $$('[data-pct]', app).forEach((el) => { el.textContent = st.sinalPct; });
     $('#politica-texto').textContent = st.politica;
@@ -275,9 +286,9 @@
   function irPasso(n) { location.hash = `#/reservar/${n}`; }
 
   function passoServicos() {
-    return agrupar(S.vitrine.servicos).map((c, i) => `
+    return agrupar(S.vitrine.servicos).map((c, i, todos) => `
       <section class="grupo">
-        <header class="grupo-topo"><span class="numeral">${romano(i + 1)}</span><h2>${esc(c.nome)}</h2></header>
+        ${todos.length > 1 ? `<header class="grupo-topo"><span class="numeral">${romano(i + 1)}</span><h2>${esc(c.nome)}</h2></header>` : ""}
         <div class="lista-servicos">${c.itens.map((s) => {
           const sel = S.carrinho.includes(s.id);
           return `<button class="servico${sel ? ' sel' : ''}" data-acao="alternar" data-id="${esc(s.id)}" aria-pressed="${sel}">
@@ -286,11 +297,11 @@
               <span class="servico-desc">${esc(s.descricao)}</span>
               <span class="servico-meta">${icone('relogio')}${duracaoTexto(s.duracao)}</span>
             </span>
-            <span class="servico-lado"><span class="servico-preco">${moeda(s.preco)}</span><span class="selo-check">${icone('check')}</span></span>
+            <span class="servico-lado">${orc() ? '' : `<span class="servico-preco">${moeda(s.preco)}</span>`}<span class="selo-check">${icone('check')}</span></span>
           </button>`;
         }).join('')}</div>
       </section>`).join('') +
-      '<p class="dica centro">Pode escolher mais de um serviço. O tempo e o valor somam sozinhos.</p>';
+      `<p class="dica centro">${orc() ? 'O valor é combinado com você pelo WhatsApp, depois de ver as suas unhas e a referência.' : 'Pode escolher mais de um serviço. O tempo e o valor somam sozinhos.'}</p>`;
   }
 
   function alternarServico(btn) {
@@ -339,8 +350,9 @@
       const x = paraData(d.data), n = d.livres.length;
       let marcador = '';
       if (x.getMonth() !== mesAnterior) { marcador = `<span class="dia-mes" aria-hidden="true">${MESES[x.getMonth()].slice(0, 3)}</span>`; mesAnterior = x.getMonth(); }
-      const estado = n ? (n <= 2 ? 'últimas' : 'livre') : d.fechado ? 'folga' : 'lotado';
-      return `${marcador}<button class="dia${d.data === S.dia ? ' sel' : ''}${n ? '' : ' indisponivel'}${n && n <= 2 ? ' poucas' : ''}" data-acao="dia" data-data="${d.data}" ${n ? '' : 'disabled'}
+      const unica = Number(st.maxPorDia) === 1; // uma vaga por dia: "últimas" seria urgência falsa
+      const estado = n ? (n <= 2 && !unica ? 'últimas' : 'livre') : d.fechado ? 'folga' : 'lotado';
+      return `${marcador}<button class="dia${d.data === S.dia ? ' sel' : ''}${n ? '' : ' indisponivel'}${n && n <= 2 && !unica ? ' poucas' : ''}" data-acao="dia" data-data="${d.data}" ${n ? '' : 'disabled'}
         aria-pressed="${d.data === S.dia}" aria-label="${esc(maiuscula(dataLonga(d.data)))}: ${n ? n + ' horários livres' : estado}">
         <span class="dia-semana">${SEMANA_CURTA[x.getDay()]}</span><span class="dia-numero">${x.getDate()}</span><span class="dia-estado">${estado}</span></button>`;
     }).join('');
@@ -366,7 +378,7 @@
           <p class="rotulo">${icone(nome === 'Noite' ? 'lua' : 'sol')}${nome}</p>
           <div class="horarios">${l.map((h) => `<button class="hora${h === S.hora ? ' sel' : ''}" data-acao="hora" data-hora="${h}" aria-pressed="${h === S.hora}">${h}</button>`).join('')}</div>
         </div>`).join('') +
-      `<p class="dica">Atendimento de ${duracaoTexto(S.agenda.duracao)}. Só aparecem horários em que ele cabe inteiro.</p>`;
+      `<p class="dica">${Number(studio().maxPorDia) === 1 ? 'Um atendimento por dia: a tarde inteira fica reservada para você.' : `Atendimento de ${duracaoTexto(S.agenda.duracao)}. Só aparecem horários em que ele cabe inteiro.`}</p>`;
     if (animar) entrarTela(alvo, 0);
   }
 
@@ -439,23 +451,29 @@
           <div><dt>${icone('usuario')}Cliente</dt><dd>${esc(d.nome)}<small>${esc(mascaraFone(d.whatsapp))}</small></dd></div>
         </dl>
         <div class="bilhete-corte" aria-hidden="true"></div>
-        <ul class="bilhete-itens">${t.lista.map((s) => `<li><span>${esc(s.nome)}</span><span>${moeda(s.preco)}</span></li>`).join('')}</ul>
+        <ul class="bilhete-itens">${t.lista.map((s) => `<li><span>${esc(s.nome)}</span><span>${orc() ? duracaoTexto(s.duracao) : moeda(s.preco)}</span></li>`).join('')}</ul>
+        ${orc() ? `
+        <div class="bilhete-sinal">
+          <div><span class="rotulo">Valor</span><strong>A combinar</strong></div>
+          <p>Depois de reservar, mande a foto das suas unhas e a referência pelo WhatsApp. O orçamento sai na conversa e o horário é confirmado em seguida.</p>
+        </div>` : `
         <div class="bilhete-total"><span>Total</span><strong>${moeda(t.total)}</strong></div>
         <div class="bilhete-sinal">
           <div><span class="rotulo">Sinal para garantir · ${st.sinalPct}%</span><strong>${moeda(t.sinal)}</strong></div>
           <p>Restante no dia: ${moeda(t.total - t.sinal)}</p>
-        </div>
+        </div>`}
         <div class="bilhete-editar">
           <button class="btn-texto" data-acao="ir-passo" data-passo="1">Alterar serviços</button>
           <button class="btn-texto" data-acao="ir-passo" data-passo="2">Alterar horário</button>
         </div>
       </article>
+      ${st.politica ? `
       <div class="politica-caixa">
-        <p class="rotulo">Política de sinal</p>
+        <p class="rotulo">${orc() ? 'Política do studio' : 'Política de sinal'}</p>
         <p>${esc(st.politica)}</p>
         <label class="marcar"><input type="checkbox" id="aceite" ${S.aceite ? 'checked' : ''}><span class="caixa">${icone('check')}</span>
-          <span>Li e concordo com a política de sinal e remarcação.</span></label>
-      </div>`;
+          <span>${orc() ? 'Li e concordo com a política do studio.' : 'Li e concordo com a política de sinal e remarcação.'}</span></label>
+      </div>` : ''}`;
   }
 
   function atualizarBarra(pulsar) {
@@ -466,11 +484,11 @@
     if (S.passo === 1) { visivel = t.lista.length > 0; }
     if (S.passo === 2) { pronto = !!(S.dia && S.hora); }
     if (S.passo === 3) { rotulo = 'Revisar'; }
-    if (S.passo === 4) { rotulo = 'Reservar'; pronto = S.aceite; }
-    $('#barra-total').textContent = moeda(t.total);
+    if (S.passo === 4) { rotulo = orc() ? 'Solicitar' : 'Reservar'; pronto = S.aceite || !studio().politica; }
+    $('#barra-total').textContent = orc() ? duracaoTexto(t.duracao) : moeda(t.total);
     $('#barra-detalhe').textContent = S.passo === 2 && S.hora
       ? `${maiuscula(SEMANA_CURTA[paraData(S.dia).getDay()])}, ${dataCurta(S.dia).slice(0, 5)} às ${S.hora}`
-      : `${duracaoTexto(t.duracao)} · sinal ${moeda(t.sinal)}`;
+      : orc() ? `${t.lista.length === 1 ? t.lista[0].nome :t.lista.length + ' serviços'} · valor a combinar` : `${duracaoTexto(t.duracao)} · sinal ${moeda(t.sinal)}`;
     const btn = $('#barra-btn');
     btn.innerHTML = `${esc(rotulo)}${icone('direita')}`;
     btn.disabled = !pronto;
@@ -494,7 +512,7 @@
   }
 
   function finalizar(btn) {
-    if (!S.aceite) { toast('Marque que leu a política de sinal para continuar.'); return; }
+    if (!S.aceite && studio().politica) { toast('Marque que leu a política do studio para continuar.'); return; }
     comCarga(btn, async () => {
       try {
         const r = await API.chamar('reservar', Object.assign({}, S.dados, { servicoIds: S.carrinho, data: S.dia, hora: S.hora }));
@@ -550,7 +568,9 @@
   function pintarReserva(r) {
     const st = studio();
     const futura = r.data > hoje() || (r.data === hoje() && r.hora > horaAgora());
-    const [titulo, sub] = CABECALHOS[r.status] || CABECALHOS.aguardando;
+    let [titulo, sub] = CABECALHOS[r.status] || CABECALHOS.aguardando;
+    if (r.sinal <= 0 && r.status === 'aguardando') [titulo, sub] = ['Seu horário está separado', 'Agora é só conversar com a gente no WhatsApp. O orçamento sai na conversa e o horário é confirmado em seguida.'];
+    if (r.sinal <= 0 && r.status === 'confirmado') sub = 'O seu horário está confirmado. Esperamos você.';
     const celebrar = S.recem === r.codigo;
     S.recem = '';
     const pct = Math.round(r.total ? (r.sinal / r.total) * 100 : st.sinalPct);
@@ -569,14 +589,26 @@
           <div><dt>${icone('brilho')}Serviços</dt><dd>${esc(r.servicos)}</dd></div>
         </dl>
         <div class="bilhete-corte" aria-hidden="true"></div>
-        <div class="bilhete-total"><span>Total</span><strong>${moeda(r.total)}</strong></div>
-        <div class="bilhete-linhas">
+        <div class="bilhete-total"><span>${r.sinal > 0 ? 'Total' : 'Valor'}</span><strong>${r.total > 0 ? moeda(r.total) : 'A combinar'}</strong></div>
+        ${r.sinal > 0 ? `<div class="bilhete-linhas">
           <p><span>Sinal (${pct}%)</span><span>${moeda(r.sinal)}</span></p>
           <p><span>Restante no dia</span><span>${moeda(r.total - r.sinal)}</span></p>
-        </div>
+        </div>` : ''}
       </article>
 
-      ${r.status === 'aguardando' ? `
+      ${r.status === 'aguardando' && r.sinal <= 0 ? `
+      <section class="pix">
+        <div class="pix-cabeca">${icone('mensagem')}<div><p class="sobretitulo">Próximo passo</p><h3>Vamos conversar</h3></div></div>
+        <ol class="mini-passos">
+          <li><span>1</span>Toque no botão abaixo para abrir o WhatsApp do studio</li>
+          <li><span>2</span>Mande a foto das suas unhas e a referência do que você quer</li>
+          <li><span>3</span>Receba o orçamento e a confirmação do horário</li>
+        </ol>
+        <a class="btn btn-ouro btn-bloco" href="${linkWhats(st.whatsapp, msgComprovante(r, st))}" target="_blank" rel="noopener">${icone('mensagem')}Falar no WhatsApp</a>
+        <p class="dica centro">O horário fica separado para você enquanto a gente conversa.</p>
+      </section>` : ''}
+
+      ${r.status === 'aguardando' && r.sinal > 0 ? `
       <section class="pix">
         <div class="pix-cabeca">${icone('dinheiro')}<div><p class="sobretitulo">Sinal via Pix</p><h3>Garanta o seu horário</h3></div></div>
         <div class="pix-valor"><span>Valor do sinal</span><strong>${moeda(r.sinal)}</strong></div>

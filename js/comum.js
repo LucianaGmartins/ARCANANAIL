@@ -50,6 +50,10 @@ const STATUS = {
   cancelado: { rotulo: 'Cancelado', icone: 'ban' },
   faltou: { rotulo: 'Não compareceu', icone: 'alerta' }
 };
+// No modo orçamento não há sinal: a reserva espera a confirmação depois da conversa no WhatsApp.
+function aplicarModo(studio) {
+  STATUS.aguardando.rotulo = studio && studio.modoOrcamento ? 'Aguardando confirmação' : 'Aguardando sinal';
+}
 const chipStatus = (s) => `<span class="chip chip-${esc(s)}">${icone(STATUS[s]?.icone || 'brilho')}${esc(STATUS[s]?.rotulo || s)}</span>`;
 
 // ---------- ícones (traços no estilo Lucide, desenhados inline) ----------
@@ -148,11 +152,18 @@ function linhasReserva(r) {
     `*Data:* ${maiuscula(dataLonga(r.data))}`,
     `*Horário:* ${r.hora} às ${horaFim(r.hora, r.duracao)}`,
     `*Serviços:* ${r.servicos}`,
-    `*Valor total:* ${moeda(r.total)}`
+    ...(r.total > 0 ? [`*Valor total:* ${moeda(r.total)}`] : [])
   ];
 }
 
 function msgComprovante(r, studio) {
+  if (studio.modoOrcamento) {
+    return [
+      `Olá, ${studio.nome}! Acabei de pedir um horário pelo app.`,
+      '', `*Nome:* ${r.cliente}`, ...linhasReserva(r), '',
+      'Vou mandar aqui a foto das minhas unhas e a referência do que eu quero para conversarmos sobre o orçamento.'
+    ].join('\n');
+  }
   return [
     `Olá, ${studio.nome}! Acabei de reservar meu horário pelo app e já fiz o Pix do sinal.`,
     '',
@@ -168,6 +179,7 @@ function msgParaCliente(r, studio, tipo, link) {
   const nome = primeiroNome(r.cliente);
   const pct = Math.round(r.total ? (r.sinal / r.total) * 100 : studio.sinalPct);
   const local = studio.endereco ? ['', `*Endereço:* ${studio.endereco}`] : [];
+  if (studio.modoOrcamento) return msgOrcamento(r, studio, tipo, link, nome, local);
   if (tipo === 'confirmado') {
     return [
       `Olá, ${nome}! Recebi o seu sinal e o seu horário no ${studio.nome} está confirmado.`,
@@ -372,4 +384,21 @@ function avisoDemo(onde) {
   el.className = 'faixa-demo';
   el.innerHTML = `${icone('alerta')}<span>Modo demonstração: os dados ficam salvos só neste aparelho.${onde === 'painel' ? ' Senha: <b>arcana</b>' : ''}</span>`;
   document.body.prepend(el);
+}
+
+function msgOrcamento(r, studio, tipo, link, nome, local) {
+  const dados = linhasReserva(r).filter((l) => !l.startsWith('*Valor'));
+  const valor = r.total > 0 ? [`*Valor combinado:* ${moeda(r.total)}`] : [];
+  if (tipo === 'confirmado') {
+    return [`Olá, ${nome}! Seu horário no ${studio.nome} está confirmado.`, '', ...dados, ...valor, ...local, '', 'Até breve!'].join('\n');
+  }
+  if (tipo === 'lembrete') {
+    return [`Olá, ${nome}! Passando para lembrar do seu horário no ${studio.nome}.`, '', ...dados, ...valor, ...local, '', 'Se surgir algum imprevisto, me avise por aqui.'].join('\n');
+  }
+  return [
+    `Olá, ${nome}! Aqui é do ${studio.nome}.`,
+    '', 'Separei este horário para você:', '', ...dados,
+    '', 'Me manda uma foto das suas unhas e a referência do que você quer, que eu te passo o orçamento e confirmo o horário.',
+    ...(link ? ['', `Acompanhe sua reserva: ${link}`] : [])
+  ].join('\n');
 }
