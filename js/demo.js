@@ -30,10 +30,10 @@
   function salvar() { try { localStorage.setItem(CHAVE, JSON.stringify(banco)); } catch (e) { /* sem espaço */ } }
 
   var db = {
-    listar: function (t) { return banco[t].map(function (o) { return Object.assign({}, o); }); },
-    inserir: function (t, o) { banco[t].push(Object.assign({}, o)); salvar(); },
+    listar: function (t) { return (banco[t] || []).map(function (o) { return Object.assign({}, o); }); },
+    inserir: function (t, o) { (banco[t] = banco[t] || []).push(Object.assign({}, o)); salvar(); },
     atualizar: function (t, campo, valor, patch) {
-      var r = banco[t].filter(function (x) { return String(x[campo]) === String(valor); })[0];
+      var r = (banco[t] || []).filter(function (x) { return String(x[campo]) === String(valor); })[0];
       if (!r) return false;
       Object.assign(r, patch); salvar(); return true;
     },
@@ -53,7 +53,7 @@
   };
 
   function semear() {
-    banco = { versao: 1, config: Object.assign({}, CONFIG_PADRAO, { instagram: 'arcananail' }), servicos: [], horarios: [], bloqueios: [], agendamentos: [], clientes: [], segredos: {} };
+    banco = { versao: 2, divulgadores: [], config: Object.assign({}, CONFIG_PADRAO, { instagram: 'arcananail' }), servicos: [], horarios: [], bloqueios: [], agendamentos: [], clientes: [], segredos: {} };
     banco.servicos = SERVICOS_PADRAO.map(function (s, i) {
       return { id: 's' + (i + 1), categoria: s[0], nome: s[1], descricao: s[2], preco: s[3], duracao: s[4], ativo: 'sim', ordem: i + 1 };
     });
@@ -105,13 +105,31 @@
       });
     }
     banco.clientes = clientes.map(function (c) { return { whatsapp: c[1], nome: c[0], nascimento: c[2], criadoEm: hojeMais(-60), atualizadoEm: hojeMais(-60) }; });
+    // Parceiras e indicações de exemplo (senha das parceiras na demonstração: parceira)
+    var parceiras = [
+      ['JULIA-K2Q', 'influenciadora', 'Júlia Andrade', '88988881111', 'julia.nails', 214, ['Camila Arraes', 'Rafaela Cordeiro', 'Fernanda Brito']],
+      ['MARINA-7HT', 'influenciadora', 'Marina Sousa', '88988882222', 'marinasousa', 96, ['Larissa Feitosa']],
+      ['ANA-P4M', 'cliente', 'Ana Luiza Bezerra', '88990001101', '', 11, ['Júlia Teles']]
+    ];
+    parceiras.forEach(function (p) {
+      var salt = uuid();
+      banco.divulgadores.push({
+        id: uuid(), codigo: p[0], tipo: p[1], nome: p[2], whatsapp: p[3], instagram: p[4],
+        senhaHash: p[1] === 'influenciadora' ? hashDemo(salt + 'parceira') : '', salt: p[1] === 'influenciadora' ? salt : '',
+        ativo: 'sim', visitas: p[5], descontosUsados: 0, criadoEm: hojeMais(-40)
+      });
+      p[6].forEach(function (nome) {
+        var r = banco.agendamentos.filter(function (a) { return a.cliente === nome && !a.indicacao; })[0];
+        if (r) r.indicacao = p[0];
+      });
+    });
     criarServidorArcana(db).definirSenha('arcana');
     salvar();
   }
 
   try {
     var salvo = JSON.parse(localStorage.getItem(CHAVE));
-    if (salvo && salvo.versao === 1) banco = salvo; else semear();
+    if (salvo && salvo.versao === 2) banco = salvo; else semear();
   } catch (e) { semear(); }
 
   window.ArcanaDemo = {

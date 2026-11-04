@@ -1,7 +1,9 @@
 /* Arcana Nail — app da cliente */
 (() => {
   const app = $('#app');
-  const CH = { perfil: 'arcana-perfil', reservas: 'arcana-reservas', vitrine: 'arcana-vitrine' };
+  const CH = { perfil: 'arcana-perfil', reservas: 'arcana-reservas', vitrine: 'arcana-vitrine', indicacao: 'arcana-indicacao', indique: 'arcana-indique-token' };
+  // Indicação recebida por link vale 30 dias neste aparelho (a última que chegou é a que conta).
+  const indicacaoAtiva = () => { const i = lerLocal(CH.indicacao); return i && Date.now() - i.em < 30 * 864e5 ? i : null; };
   const PADRAO = {
     nome: 'Arcana Nail', slogan: 'Alongamento e unhas alternativas', whatsapp: '88996130002', sinalPct: 20, prazoSinalHoras: 12,
     boasVindas: 'Alongamento, manutenção e unhas alternativas com hora marcada. Escolha o serviço, reserve o horário e garanta a sua vaga com um sinal via Pix.',
@@ -61,7 +63,7 @@
   }
 
   // ---------- rotas ----------
-  const ORDEM = { inicio: 0, meus: 1, reservar: 2, reserva: 3 };
+  const ORDEM = { inicio: 0, meus: 1, indique: 1, reservar: 2, reserva: 3 };
   function rota() {
     const [nome, arg] = location.hash.replace(/^#\/?/, '').split('/');
     return { nome: ORDEM[nome] !== undefined ? nome : 'inicio', arg: decodeURIComponent(arg || '') };
@@ -76,7 +78,7 @@
       document.body.classList.remove('com-barra');
       window.scrollTo(0, 0);
     }
-    ({ inicio: telaInicio, reservar: telaReservar, reserva: telaReserva, meus: telaMeus })[nome](arg, dir);
+    ({ inicio: telaInicio, reservar: telaReservar, reserva: telaReserva, meus: telaMeus, indique: telaIndique })[nome](arg, dir);
   }
 
   // ---------- início ----------
@@ -113,6 +115,7 @@
     app.innerHTML = `
     <div class="tela tela-inicio${intro ? ' com-intro' : ''}" data-orc="${o}">
       <header class="topo-inicio">
+        <span id="selo-indicacao">${htmlSeloIndicacao()}</span>
         <button class="pilula" data-acao="ir" data-destino="meus">${icone('calendario')}Meus horários</button>
       </header>
 
@@ -166,6 +169,15 @@
         </details>
       </section>
 
+      <section class="secao" id="indique">
+        <div class="indique-cartao surgir">
+          <p class="sobretitulo">Indique e ganhe</p>
+          <h2 class="titulo-secao">Indicou, <em>ganhou <span data-desc>${esc(st.descontoIndicacao || 15)}</span>%</em></h2>
+          <p class="lead">Já é cliente? Pegue o seu link de indicação. A cada amiga nova atendida por ele, você ganha <span data-desc>${esc(st.descontoIndicacao || 15)}</span>% de desconto no próximo serviço.</p>
+          <button class="btn btn-fantasma btn-bloco" data-acao="ir" data-destino="indique">${icone('compartilhar')}Pegar meu link</button>
+        </div>
+      </section>
+
       <section class="secao contato" id="contato">
         <div class="surgir">
           <p class="sobretitulo">Fale com o studio</p>
@@ -178,6 +190,7 @@
       <footer class="rodape">
         <div class="ornamento">${icone('brilho')}</div>
         <p>${esc(st.nome)} &middot; ${new Date().getFullYear()}</p>
+        <a href="parceiras.html">Área de parceiras</a>
         <a href="painel.html">Área do studio</a>
       </footer>
     </div>
@@ -197,7 +210,8 @@
     const st = studio();
     $('#politica').hidden = !st.politica;
     $$('[data-campo]', app).forEach((el) => { el.textContent = st[el.dataset.campo] || ''; });
-    $$('[data-pct]', app).forEach((el) => { el.textContent = st.sinalPct; });
+    $('[data-pct]', app).forEach((el) => { el.textContent = st.sinalPct; });
+    $('[data-desc]', app).forEach((el) => { el.textContent = st.descontoIndicacao || 15; });
     $('#politica-texto').textContent = st.politica;
     $('#contato-acoes').innerHTML = htmlContato();
     $('#menu').innerHTML = htmlMenu();
@@ -411,6 +425,8 @@
         <input class="entrada" name="nascimento" type="date" value="${esc(p.nascimento || '')}" max="${hoje()}"></label>
       <label class="campo"><span>Alguma referência? <small>opcional</small></span>
         <textarea class="entrada" name="obs" maxlength="300" placeholder="Formato, cor, comprimento ou a arte que você tem em mente">${esc(p.obs || '')}</textarea></label>
+      <label class="campo"><span>Código de quem indicou <small>opcional</small></span>
+        <input class="entrada" name="indicacao" autocapitalize="characters" autocomplete="off" maxlength="20" value="${esc(p.indicacao || (indicacaoAtiva() || {}).codigo || '')}" placeholder="Ex.: JULIA-K2Q"></label>
       <p class="dica">${icone('cadeado', 'ic-inline')}Seus dados ficam só com o studio e servem para confirmar a reserva.</p>
       <button type="submit" hidden></button>
     </form>`;
@@ -435,7 +451,7 @@
     });
     const primeiro = Object.keys(erros).find((k) => erros[k]);
     if (primeiro) { f[primeiro].focus(); return false; }
-    S.dados = { nome, whatsapp, nascimento: f.nascimento.value, obs: f.obs.value.trim() };
+    S.dados = { nome, whatsapp, nascimento: f.nascimento.value, obs: f.obs.value.trim(), indicacao: f.indicacao.value.trim().toUpperCase() };
     gravarLocal(CH.perfil, { nome, whatsapp, nascimento: f.nascimento.value });
     return true;
   }
@@ -517,6 +533,7 @@
       try {
         const r = await API.chamar('reservar', Object.assign({}, S.dados, { servicoIds: S.carrinho, data: S.dia, hora: S.hora }));
         lembrarReserva(r);
+        try { localStorage.removeItem(CH.indicacao); } catch { /* sem armazenamento */ }
         S.reservas[r.codigo] = r;
         S.recem = r.codigo;
         Object.assign(S, { carrinho: [], agenda: null, dia: '', hora: '', aceite: false, dados: null, passo: 1 });
@@ -722,6 +739,7 @@
             <button class="btn btn-fantasma btn-bloco" type="submit">${icone('bilhete')}Buscar reserva</button>
           </form>
         </section>
+        <button class="btn btn-sutil btn-bloco indique-atalho" data-acao="ir" data-destino="indique">${icone('compartilhar')}Indique e ganhe ${esc(studio().descontoIndicacao || 15)}%</button>
       </div>`;
     entrarTela(app.firstElementChild, dir);
 
@@ -773,6 +791,89 @@
     }
   }
 
+  // ---------- indique e ganhe ----------
+  function htmlSeloIndicacao() {
+    const i = indicacaoAtiva();
+    return i && i.nome ? `<span class="pilula selo-ind">${icone('brilho')}Indicação de ${esc(i.nome)}</span>` : '';
+  }
+
+  async function telaIndique(_, dir) {
+    app.innerHTML = `
+      <div class="tela tela-indique">
+        <header class="passo-topo">
+          <button class="icone-btn" data-acao="ir" data-destino="" aria-label="Voltar ao início">${icone('voltar')}</button>
+          <div class="passo-titulos"><p class="sobretitulo">${esc(studio().nome)}</p><h1>Indique e ganhe</h1></div>
+        </header>
+        <div id="indique-corpo" class="painel-div"><div class="esqueleto" style="height:140px"></div><div class="esqueleto" style="height:220px"></div></div>
+      </div>`;
+    entrarTela(app.firstElementChild, dir);
+    const corpo = $('#indique-corpo');
+    const mostrar = (d) => {
+      if (rota().nome !== 'indique') return;
+      corpo.innerHTML = Divulgacao.html(d, studio().nome) +
+        '<button class="btn btn-texto" data-acao="sair-indique">Sair do meu link neste aparelho</button>';
+      Divulgacao.ligar(corpo, d, studio().nome);
+      entrarTela(corpo, 0);
+    };
+    const entrarCom = async (item) => {
+      const r = await API.chamar('divCliente', item);
+      gravarLocal(CH.indique, r.token);
+      return r.painel;
+    };
+    try {
+      await garantirVitrine().catch(() => null);
+      const token = lerLocal(CH.indique);
+      if (token) {
+        try { return mostrar(await API.chamar('divPainel', { token })); } catch (e) {
+          if (e.codigo !== 'auth') throw e;
+          try { localStorage.removeItem(CH.indique); } catch { /* sem armazenamento */ }
+        }
+      }
+      for (const item of minhasReservas()) {
+        try { return mostrar(await entrarCom(item)); } catch (e) { if (e.codigo === 'rede') throw e; }
+      }
+      if (rota().nome === 'indique') formIndique(corpo, mostrar, entrarCom);
+    } catch (e) {
+      if (rota().nome === 'indique') corpo.innerHTML = erroBloco(e.message, 'recarregar');
+    }
+  }
+
+  function formIndique(corpo, mostrar, entrarCom) {
+    const desc = esc(studio().descontoIndicacao || 15);
+    corpo.innerHTML = `
+      <section class="div-saudacao">
+        <p class="sobretitulo">Para quem já é cliente</p>
+        <h2 class="titulo-secao">Indicou, <em>ganhou ${desc}%</em></h2>
+        <p class="lead">Pegue o seu link e mande para as amigas. A cada amiga nova que fizer o primeiro atendimento por ele, você ganha ${desc}% de desconto no seu próximo serviço.</p>
+      </section>
+      <section class="cartao moldura buscar">
+        <h2>Pegar meu link</h2>
+        <p class="dica">Entre com o WhatsApp e o código de uma reserva sua (ele aparece na mensagem da reserva, como AN-7K2Q).</p>
+        <form id="form-indique" class="form-dados" novalidate>
+          <div class="grade-2">
+            <label class="campo"><span>WhatsApp</span><input class="entrada" name="whatsapp" type="tel" inputmode="tel" autocomplete="tel-national" placeholder="(88) 9..." value="${esc(mascaraFone(perfil().whatsapp || ''))}"></label>
+            <label class="campo"><span>Código</span><input class="entrada" name="codigo" autocapitalize="characters" maxlength="7" placeholder="AN-0000"></label>
+          </div>
+          <button class="btn btn-ouro btn-bloco" type="submit">${icone('compartilhar')}Gerar meu link</button>
+        </form>
+      </section>
+      <div class="indique-rodape">
+        <button class="btn btn-fantasma btn-bloco" data-acao="reservar">${icone('brilho')}Ainda não sou cliente: reservar</button>
+        <a class="btn btn-texto" href="parceiras.html">É influenciadora? Acesse a Área de parceiras</a>
+      </div>`;
+    entrarTela(corpo, 0);
+    const f = $('#form-indique');
+    f.whatsapp.addEventListener('input', () => { f.whatsapp.value = mascaraFone(f.whatsapp.value); });
+    f.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const whatsapp = soDigitos(f.whatsapp.value), codigo = f.codigo.value.trim().toUpperCase();
+      if (!foneValido(whatsapp) || codigo.replace(/[^A-Z0-9]/g, '').length < 4) { toast('Preencha o WhatsApp com DDD e o código da reserva.', 'erro'); return; }
+      comCarga($('button[type=submit]', f), async () => {
+        try { mostrar(await entrarCom({ whatsapp, codigo })); } catch (err) { toast(err.message, 'erro'); }
+      });
+    });
+  }
+
   // ---------- ações ----------
   const ACOES = {
     ir: (b) => { location.hash = `#/${b.dataset.destino || ''}`; },
@@ -799,7 +900,11 @@
         toast('Agora é só colar na opção "Pix copia e cola" do seu banco.', 'ok');
       }
     },
-    cancelar: cancelarReserva
+    cancelar: cancelarReserva,
+    'sair-indique': () => {
+      try { localStorage.removeItem(CH.indique); } catch { /* sem armazenamento */ }
+      location.hash = '#/';
+    }
   };
 
   app.addEventListener('click', (e) => {
@@ -813,7 +918,23 @@
   });
 
   // ---------- partida ----------
-  const codigoLink = new URLSearchParams(location.search).get('c');
+  const parametros = new URLSearchParams(location.search);
+  const codigoIndicacao = (parametros.get('i') || '').trim().toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 20);
+  if (codigoIndicacao) {
+    const anterior = lerLocal(CH.indicacao);
+    gravarLocal(CH.indicacao, { codigo: codigoIndicacao, em: Date.now(), nome: anterior && anterior.codigo === codigoIndicacao ? anterior.nome : '' });
+    history.replaceState(null, '', location.pathname + location.hash);
+    if (!lerLocal(`arcana-visita-${codigoIndicacao}`)) {
+      API.chamar('visita', { codigo: codigoIndicacao }).then((r) => {
+        const atual = lerLocal(CH.indicacao);
+        if (!r.valido) { if (atual && atual.codigo === codigoIndicacao) localStorage.removeItem(CH.indicacao); return; }
+        gravarLocal(`arcana-visita-${codigoIndicacao}`, 1);
+        if (atual && atual.codigo === codigoIndicacao) { atual.nome = r.nome; gravarLocal(CH.indicacao, atual); }
+        if ($('#selo-indicacao')) $('#selo-indicacao').innerHTML = htmlSeloIndicacao();
+      }).catch(() => null);
+    }
+  }
+  const codigoLink = parametros.get('c');
   if (codigoLink) history.replaceState(null, '', `${location.pathname}#/reserva/${encodeURIComponent(codigoLink)}`);
   window.addEventListener('hashchange', navegar);
   avisoDemo('cliente');

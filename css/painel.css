@@ -29,7 +29,7 @@
 .conteudo { display: grid; gap: 16px; }
 
 .nav-baixo {
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; display: grid; grid-template-columns: repeat(5, 1fr);
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; display: grid; grid-template-columns: repeat(6, 1fr);
   padding: 6px 4px calc(6px + var(--baixo-seguro));
   background: rgba(12, 9, 14, 0.92); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
   border-top: 1px solid var(--borda);
@@ -251,3 +251,26 @@
   .visao-grade .painel-bloco:last-child { grid-column: 1 / -1; }
   .salvar-fixo { bottom: 0; }
 }
+
+/* ---------- divulgação ---------- */
+.nav-baixo-item { font-size: 10.5px; }
+.filtros { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+.filtros button {
+  flex: none; height: 38px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--borda); font-size: 13.5px; color: var(--marfim-2);
+  transition: background-color 200ms ease, color 200ms ease, border-color 200ms ease;
+}
+.filtros button[aria-selected='true'] { background: var(--gradiente-ouro); border-color: transparent; color: #1b1108; font-weight: 500; }
+.div-ranking { display: grid; gap: 10px; }
+.div-linha { display: grid; grid-template-columns: 40px 1fr; gap: 12px; padding: 16px; border-radius: var(--raio); border: 1px solid var(--borda); background: var(--cartao); }
+.div-linha.pausada { opacity: 0.55; }
+.div-pos { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--borda-forte); font-family: var(--f-display); font-size: 20px; font-weight: 600; color: var(--ouro-claro); }
+.div-linha:first-child .div-pos { background: var(--gradiente-ouro); color: #1b1108; border-color: transparent; }
+.div-info { display: grid; gap: 4px; min-width: 0; }
+.div-nome { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.div-nome b { font-family: var(--f-display); font-size: 21px; font-weight: 500; line-height: 1.15; }
+.div-info > small { font-size: 12.5px; color: var(--marfim-3); letter-spacing: 0.04em; }
+.div-numeros { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--marfim-3); margin-top: 2px; }
+.div-numeros b { color: var(--marfim); font-weight: 600; }
+.div-desc { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ouro-claro); }
+.div-desc .ic { width: 15px; height: 15px; }
+.div-ativo { margin-left: auto; gap: 8px; }

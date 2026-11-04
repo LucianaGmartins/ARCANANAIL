@@ -382,7 +382,7 @@ function avisoDemo(onde) {
   if (!API.demo) return;
   const el = document.createElement('div');
   el.className = 'faixa-demo';
-  el.innerHTML = `${icone('alerta')}<span>Modo demonstração: os dados ficam salvos só neste aparelho.${onde === 'painel' ? ' Senha: <b>arcana</b>' : ''}</span>`;
+  el.innerHTML = `${icone('alerta')}<span>Modo demonstração: os dados ficam salvos só neste aparelho.${onde === 'painel' ? ' Senha: <b>arcana</b>' : onde === 'parceiras' ? ' Parceira de exemplo: <b>(88) 98888-1111</b>, senha <b>parceira</b>' : ''}</span>`;
   document.body.prepend(el);
 }
 

@@ -6,12 +6,13 @@
     { id: 'agenda', nome: 'Agenda', icone: 'calendario' },
     { id: 'sinais', nome: 'Sinais', icone: 'ampulheta' },
     { id: 'visao', nome: 'Visão geral', curto: 'Visão', icone: 'grafico' },
+    { id: 'divulgacao', nome: 'Divulgação', curto: 'Divulgar', icone: 'compartilhar' },
     { id: 'servicos', nome: 'Serviços', icone: 'joia' },
     { id: 'ajustes', nome: 'Ajustes', icone: 'ajustes' }
   ];
   const P = {
     token: lerLocal(CH_TOKEN, ''), base: null, aba: 'agenda', dia: isoLocal(), semana: [], doSemana: [],
-    pendentes: [], clientes: null, mes: isoLocal().slice(0, 7), filtroClientes: ''
+    pendentes: [], clientes: null, divulgacao: null, filtroDiv: 'todas', mes: isoLocal().slice(0, 7), filtroClientes: ''
   };
   const st = () => P.base.studio;
   const orc = () => !!st().modoOrcamento; // modo orçamento: sem preço e sem sinal
@@ -147,7 +148,7 @@
     $('#topo-titulo').textContent = a.nome;
     $('#topo-sub').textContent = st().nome;
     window.scrollTo(0, 0);
-    ({ agenda: abaAgenda, sinais: abaSinais, visao: abaVisao, servicos: abaServicos, ajustes: abaAjustes })[id]();
+    ({ agenda: abaAgenda, sinais: abaSinais, visao: abaVisao, divulgacao: abaDivulgacao, servicos: abaServicos, ajustes: abaAjustes })[id]();
   }
 
   function pintar(html) {
@@ -231,6 +232,8 @@
           <p class="ag-servicos">${esc(r.servicos)}</p>
           <p class="ag-meta">${valorTexto(r)} · ${duracaoTexto(r.duracao)} · ${r.origem === 'studio' ? 'pelo studio' : 'pelo app'}</p>
           ${niver ? `<p class="ag-niver">${icone('bolo')}${esc(niver)}</p>` : ''}
+          ${r.indicadaPor ? `<p class="ag-niver">${icone('compartilhar')}Indicada por ${esc(r.indicadaPor)}</p>` : ''}
+          ${r.desconto ? `<p class="ag-niver">${icone('joia')}Tem ${r.desconto.qtd > 1 ? r.desconto.qtd + ' descontos' : 'desconto'} de ${esc(P.base.studio.descontoIndicacao || 15)}% por indicação</p>` : ''}
           ${r.obs ? `<p class="ag-obs">${esc(r.obs)}</p>` : ''}
           <div class="ag-acoes">${acoesRapidas(r)}</div>
         </div>
@@ -314,6 +317,7 @@
       r.status === 'confirmado' && ['status', 'concluido', 'brilho', 'Marcar como concluído'],
       ativa && ['remarcar', '', 'calendario', 'Remarcar'],
       ['obs', '', 'lapis', r.obs ? 'Editar observação' : 'Adicionar observação'],
+      r.desconto && ['usar-desconto', r.desconto.id, 'joia', `Usar desconto de ${P.base.studio.descontoIndicacao || 15}% da cliente`],
       ['copiar-link', '', 'link', 'Copiar link da reserva para a cliente'],
       r.status === 'confirmado' && ['status', 'faltou', 'alerta', 'Não compareceu'],
       ativa && ['status', 'cancelado', 'ban', 'Cancelar reserva', 'perigo'],
@@ -343,6 +347,7 @@
       if (tipo === 'remarcar') setTimeout(() => folhaRemarcar(r), 260);
       if (tipo === 'obs') setTimeout(() => folhaObs(r), 260);
       if (tipo === 'valor') setTimeout(() => folhaValor(r), 260);
+      if (tipo === 'usar-desconto') setTimeout(() => usarDesconto(b.dataset.valor, r.cliente), 260);
       if (tipo === 'copiar-link') { if (await copiar(linkApp(r.codigo))) toast('Link copiado.', 'ok'); }
     });
   }
@@ -466,6 +471,8 @@
         ${camposHorario(P.dia >= hoje() ? P.dia : hoje())}
         <label class="campo"><span>Situação</span>
           <select class="entrada" name="status">${orc() ? '<option value="aguardando">Aguardando confirmação</option><option value="confirmado">Já confirmada</option>' : '<option value="aguardando">Aguardando sinal</option><option value="confirmado">Sinal já recebido (confirmada)</option>'}</select></label>
+        <label class="campo"><span>Código de quem indicou <small>opcional</small></span><input class="entrada" name="indicacao" list="lista-codigos" autocapitalize="characters" autocomplete="off" maxlength="20" placeholder="Ex.: JULIA-K2Q"></label>
+        <datalist id="lista-codigos">${(P.divulgacao ? P.divulgacao.lista : []).filter((d) => d.ativo).map((d) => `<option value="${esc(d.codigo)}">${esc(d.nome)}</option>`).join('')}</datalist>
         <label class="campo"><span>Observação <small>opcional</small></span><textarea class="entrada" name="obs" maxlength="400"></textarea></label>
         <button class="btn btn-ouro btn-bloco" type="submit">${icone('brilho')}Criar reserva</button>
       </form>`
@@ -501,7 +508,7 @@
         try {
           const r = await api('reservarStudio', {
             nome: f.nome.value, whatsapp: soDigitos(f.whatsapp.value), servicoIds: ids, data: f.data.value,
-            hora: hora.valor(), encaixe: f.encaixe.checked, status: f.status.value, obs: f.obs.value
+            hora: hora.valor(), encaixe: f.encaixe.checked, status: f.status.value, obs: f.obs.value, indicacao: f.indicacao.value.trim().toUpperCase()
           });
           folha.fechar();
           P.dia = r.data;
@@ -610,6 +617,73 @@
         <span class="cliente-gasto">${moeda(c.gasto)}</span>
         <a class="icone-btn" href="${linkWhats(c.whatsapp, `Olá, ${primeiroNome(c.nome)}! Aqui é do ${st().nome}.`)}" target="_blank" rel="noopener" aria-label="WhatsApp de ${esc(c.nome)}">${icone('mensagem')}</a>
       </li>`).join('') : '<li class="dica">Nenhuma cliente encontrada.</li>';
+  }
+
+  // ---------- divulgação ----------
+  async function abaDivulgacao() {
+    const filtros = [['todas', 'Todas'], ['influenciadora', 'Influenciadoras'], ['cliente', 'Clientes']];
+    pintar(`
+      <p class="intro-aba">Quem divulga o studio com link próprio. O ranking mostra quem trouxe mais clientes atendidas.</p>
+      <div id="div-resumo">${esqueleto(1, 110)}</div>
+      <div class="filtros" role="tablist">${filtros.map(([v, n]) => `<button role="tab" aria-selected="${P.filtroDiv === v}" data-acao="filtro-div" data-valor="${v}">${n}</button>`).join('')}</div>
+      <div id="div-lista" class="div-ranking">${esqueleto(3, 110)}</div>
+      <section class="painel-bloco">
+        <h2>Convidar influenciadoras</h2>
+        <p class="dica">Mande este link para a influenciadora criar a conta dela e receber o link de divulgação.</p>
+        <div class="link-app"><code>${esc(new URL('./parceiras.html?criar', location.href).href)}</code></div>
+        <div class="grade-2">
+          <button class="btn btn-fantasma" type="button" data-acao="copiar-link-parceiras">${icone('copiar')}Copiar</button>
+          <a class="btn btn-fantasma" href="${linkWhats('', '')}" data-acao="whats-parceiras" target="_blank" rel="noopener">${icone('mensagem')}WhatsApp</a>
+        </div>
+      </section>`);
+    try {
+      P.divulgacao = await api('divulgacao');
+      if (P.aba !== 'divulgacao') return;
+      pintarDivulgacao();
+    } catch (e) {
+      if (P.aba === 'divulgacao') $('#div-lista').innerHTML = erroBloco(e.message);
+    }
+  }
+
+  function pintarDivulgacao() {
+    const { lista, totais, desconto } = P.divulgacao;
+    $('#div-resumo').innerHTML = `
+      <div class="kpis">
+        <div class="kpi destaque"><span>Clientes atendidas por divulgação</span><strong>${totais.atendimentos}</strong><small>${totais.reservas} reservas pelos links · ${totais.visitas} cliques</small></div>
+        <div class="kpi"><span>Divulgadoras</span><strong>${lista.length}</strong><small>${lista.filter((d) => d.tipo === 'influenciadora').length} influenciadoras · ${lista.filter((d) => d.tipo === 'cliente').length} clientes</small></div>
+        <div class="kpi"><span>Valor gerado</span><strong>${moeda(totais.valor)}</strong><small>atendimentos concluídos com valor</small></div>
+      </div>`;
+    const visiveis = lista.filter((d) => P.filtroDiv === 'todas' || d.tipo === P.filtroDiv);
+    $('#div-lista').innerHTML = visiveis.length ? visiveis.map((d, i) => {
+      const m = d.metricas;
+      return `<article class="div-linha${d.ativo ? '' : ' pausada'}">
+        <span class="div-pos">${i + 1}</span>
+        <div class="div-info">
+          <div class="div-nome"><b>${esc(d.nome)}</b><span class="chip ${d.tipo === 'cliente' ? 'chip-concluido' : 'chip-confirmado'}">${d.tipo === 'cliente' ? 'Cliente' : 'Influenciadora'}</span>${d.ativo ? '' : '<span class="chip chip-cancelado">Pausada</span>'}</div>
+          <small>${d.instagram ? '@' + esc(d.instagram) + ' · ' : ''}${esc(d.codigo)}</small>
+          <div class="div-numeros">
+            <span><b>${m.atendimentos}</b> atendidas</span><span><b>${m.reservas}</b> reservas</span><span><b>${m.visitas}</b> cliques</span>${m.valor ? `<span><b>${moeda(m.valor)}</b></span>` : ''}
+          </div>
+          ${d.tipo === 'cliente' && (m.descontos || m.descontosUsados) ? `<p class="div-desc">${icone('joia')}${m.descontos} ${m.descontos === 1 ? 'desconto disponível' : 'descontos disponíveis'} de ${esc(desconto)}%${m.descontosUsados ? ` · ${m.descontosUsados} já usado${m.descontosUsados > 1 ? 's' : ''}` : ''}</p>` : ''}
+          <div class="ag-acoes">
+            ${m.descontos ? `<button class="btn btn-ouro btn-pequeno" data-acao="usar-desconto" data-id="${esc(d.id)}" data-nome="${esc(d.nome)}">${icone('joia')}Usar desconto</button>` : ''}
+            <a class="btn btn-sutil btn-pequeno" href="${linkWhats(d.whatsapp, `Olá, ${primeiroNome(d.nome)}! Aqui é do ${st().nome}.`)}" target="_blank" rel="noopener">${icone('mensagem')}WhatsApp</a>
+            <button class="btn btn-sutil btn-pequeno" data-acao="copiar-link-div" data-codigo="${esc(d.codigo)}">${icone('link')}Link</button>
+            <label class="linha-interruptor div-ativo"><span><small>${d.ativo ? 'Link ativo' : 'Link pausado'}</small></span><span class="interruptor"><input type="checkbox" data-div-ativo="${esc(d.id)}" ${d.ativo ? 'checked' : ''} aria-label="Link de ${esc(d.nome)} ativo"><i></i></span></label>
+          </div>
+        </div>
+      </article>`;
+    }).join('') : `<div class="vazio">${icone('compartilhar')}<h3>Ninguém por aqui ainda</h3><p>Quando uma influenciadora criar conta ou uma cliente pegar o link dela, aparece aqui.</p></div>`;
+  }
+
+  async function usarDesconto(id, nome) {
+    const pct = P.base.studio.descontoIndicacao || 15;
+    if (!await confirmar({ titulo: `Usar o desconto de ${nome}?`, texto: `Marca 1 desconto de ${pct}% como usado neste atendimento.`, ok: 'Usar desconto' })) return;
+    try {
+      await api('divUsarDesconto', { id });
+      toast('Desconto marcado como usado.', 'ok');
+      recarregarAba();
+    } catch (e) { toast(e.message, 'erro'); }
   }
 
   // ---------- serviços ----------
@@ -767,6 +841,9 @@
             ${campo('inicioAtendimento', 'Começar a atender em', 'type="date"', 'vazio = já atende')}
             ${campo('maxPorDia', 'Atendimentos por dia', 'type="number" min="0" max="20" inputmode="numeric"', '0 = sem limite')}
           </div>
+          <div class="grade-2">
+            ${campo('descontoIndicacao', 'Desconto por indicação (%)', 'type="number" min="0" max="100" inputmode="numeric"', 'para clientes que indicam')}
+          </div>
           <div class="horarios-semana">
             <div class="hs-cab"><span>Dia</span><span>Abre</span><span>Fecha</span><span>Pausa</span><span>Volta</span></div>
             ${ordem.map((d) => { const h = hs[d]; return `
@@ -824,7 +901,7 @@
       e.preventDefault();
       const studio = {};
       ['nome', 'slogan', 'whatsapp', 'instagram', 'endereco', 'mapa', 'pixChave', 'pixTipo', 'pixNome', 'pixCidade', 'sinalPct',
-        'prazoSinalHoras', 'intervalo', 'antecedenciaHoras', 'diasAgenda', 'inicioAtendimento', 'maxPorDia', 'boasVindas', 'politica'].forEach((k) => { studio[k] = f[k].value.trim(); });
+        'prazoSinalHoras', 'intervalo', 'antecedenciaHoras', 'diasAgenda', 'inicioAtendimento', 'maxPorDia', 'descontoIndicacao', 'boasVindas', 'politica'].forEach((k) => { studio[k] = f[k].value.trim(); });
       studio.modoOrcamento = f.modoOrcamento.checked;
       studio.whatsapp = soDigitos(studio.whatsapp);
       const horarios = [0, 1, 2, 3, 4, 5, 6].map((d) => ({
@@ -904,6 +981,21 @@
       toast('Folga adicionada. Toque em Salvar ajustes para valer.');
     },
     'rem-folga': (b) => { P.folgas = P.folgas.filter((x) => x.data !== b.dataset.data); pintarFolgas(); },
+    'filtro-div': (b) => {
+      P.filtroDiv = b.dataset.valor;
+      $('[data-acao="filtro-div"]').forEach((x) => x.setAttribute('aria-selected', String(x === b)));
+      if (P.divulgacao) pintarDivulgacao();
+    },
+    'usar-desconto': (b) => usarDesconto(b.dataset.id, b.dataset.nome),
+    'copiar-link-div': async (b) => {
+      if (await copiar(Divulgacao.linkDe(b.dataset.codigo))) feedbackBotao(b, `${icone('check')}Copiado`);
+    },
+    'copiar-link-parceiras': async (b) => {
+      if (await copiar(new URL('./parceiras.html?criar', location.href).href)) feedbackBotao(b, `${icone('check')}Copiado`);
+    },
+    'whats-parceiras': (b) => {
+      window.open(`https://wa.me/?text=${encodeURIComponent(`Oi! Quero você como parceira do ${st().nome}. Crie a sua conta aqui e receba o seu link de divulgação: ${new URL('./parceiras.html?criar', location.href).href}`)}`, '_blank', 'noopener');
+    },
     'reiniciar-demo': async () => {
       if (!await confirmar({ titulo: 'Restaurar a demonstração?', texto: 'Todas as reservas de teste deste aparelho serão substituídas pelos dados de exemplo.', ok: 'Restaurar', perigo: true })) return;
       window.ArcanaDemo.reiniciar();
@@ -919,7 +1011,16 @@
     if (fn) { e.preventDefault(); fn(alvo); }
   });
 
-  raiz.addEventListener('change', (e) => {
+  raiz.addEventListener('change', async (e) => {
+    const idDiv = e.target.dataset.divAtivo;
+    if (idDiv !== undefined) {
+      try {
+        P.divulgacao = await api('divAtivo', { id: idDiv, ativo: e.target.checked });
+        toast(e.target.checked ? 'Link reativado.' : 'Link pausado. Ele para de contar e a pessoa não acessa mais a área.', 'ok');
+        pintarDivulgacao();
+      } catch (err) { e.target.checked = !e.target.checked; toast(err.message, 'erro'); }
+      return;
+    }
     const i = e.target.dataset.alternarServico;
     if (i === undefined) return;
     const lista = P.base.servicos.slice();

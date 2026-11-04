@@ -13,11 +13,13 @@ const API = (() => {
     });
   }
 
-  async function obterDemo() {
-    if (servidorDemo) return servidorDemo;
-    if (typeof criarServidorArcana === 'undefined') await carregarScript('servidor/nucleo.js');
-    if (!window.ArcanaDemo) await carregarScript('js/demo.js');
-    servidorDemo = window.ArcanaDemo.servidor;
+  // Uma única carga, mesmo com várias chamadas ao mesmo tempo (senão o banco de demonstração nasce duas vezes).
+  function obterDemo() {
+    servidorDemo = servidorDemo || (async () => {
+      if (typeof criarServidorArcana === 'undefined') await carregarScript('servidor/nucleo.js');
+      if (!window.ArcanaDemo) await carregarScript('js/demo.js');
+      return window.ArcanaDemo.servidor;
+    })();
     return servidorDemo;
   }
 

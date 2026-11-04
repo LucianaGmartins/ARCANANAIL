@@ -1,0 +1,22 @@
+/* Arcana Nail — área de parceiras */
+
+.parc-tela { width: min(100%, 520px); margin: 0 auto; padding: calc(28px + var(--topo-seguro)) 20px 56px; display: grid; gap: 14px; }
+.parc-tela > .sobretitulo, .parc-tela > .titulo-secao, .parc-tela > .lead { text-align: center; }
+.parc-tela > .titulo-secao { margin-top: 0; }
+.parc-tela .lead { color: var(--marfim-2); font-weight: 300; }
+.parc-tela > .btn-texto { justify-self: center; }
+.parc-marca { display: grid; justify-items: center; width: 260px; justify-self: center; margin-bottom: 4px; }
+.parc-marca img:first-child { width: 58%; margin-bottom: -2%; filter: drop-shadow(0 0 14px rgba(216, 176, 106, 0.3)); }
+.parc-abas { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border-radius: 999px; border: 1px solid var(--borda); background: rgba(255, 255, 255, 0.02); margin-top: 6px; }
+.parc-abas button {
+  height: 42px; border-radius: 999px; font-family: var(--f-caps); font-size: 11.5px; font-weight: 600; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--marfim-3); transition: background-color 220ms ease, color 220ms ease;
+}
+.parc-abas button[aria-selected='true'] { background: var(--gradiente-ouro); color: #1b1108; }
+.parc-cartao { display: grid; gap: 12px; }
+.form-dados { display: grid; gap: 12px; }
+
+.parc-topo { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.parc-marca-mini { width: 150px; }
+.parc-topo-acoes { display: flex; gap: 8px; }
+.parc-painel .titulo-secao, .parc-painel .lead { text-align: left; }
