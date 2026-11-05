@@ -919,11 +919,13 @@
 
   // ---------- partida ----------
   const parametros = new URLSearchParams(location.search);
-  const codigoIndicacao = (parametros.get('i') || '').trim().toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 20);
+  // Link de indicação: .../#JULIA-K2Q (atual) ou .../?i=JULIA-K2Q (antigo).
+  const noHash = /^#([A-Za-z]{1,10}-[A-Za-z0-9]{3})$/.exec(location.hash);
+  const codigoIndicacao = ((noHash && noHash[1]) || parametros.get('i') || '').trim().toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 20);
   if (codigoIndicacao) {
     const anterior = lerLocal(CH.indicacao);
     gravarLocal(CH.indicacao, { codigo: codigoIndicacao, em: Date.now(), nome: anterior && anterior.codigo === codigoIndicacao ? anterior.nome : '' });
-    history.replaceState(null, '', location.pathname + location.hash);
+    history.replaceState(null, '', location.pathname + (noHash ? '' : location.hash));
     if (!lerLocal(`arcana-visita-${codigoIndicacao}`)) {
       API.chamar('visita', { codigo: codigoIndicacao }).then((r) => {
         const atual = lerLocal(CH.indicacao);

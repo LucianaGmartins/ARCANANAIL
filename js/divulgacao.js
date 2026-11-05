@@ -1,6 +1,7 @@
 /* Arcana Nail — painel de quem divulga: cliente que indica e parceira influenciadora. */
 const Divulgacao = (() => {
-  const linkDe = (codigo) => new URL(`./?i=${encodeURIComponent(codigo)}`, location.href).href;
+  // Formato com # porque o adesivo de link do Instagram recusa o ?i= (o antigo continua valendo).
+  const linkDe = (codigo) => `${new URL('./', location.href).href}#${encodeURIComponent(codigo)}`;
   const convite = (studioNome, link) => `Conheci o ${studioNome} e recomendo demais. Reserve o seu horário pelo meu link: ${link}`;
   const SITUACAO = {
     aguardando: ['Reservou', 'aguardando'], confirmado: ['Confirmada', 'confirmado'], concluido: ['Atendida', 'concluido'],
